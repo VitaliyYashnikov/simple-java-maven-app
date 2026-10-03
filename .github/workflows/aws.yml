@@ -1,8 +1,8 @@
-name: CI/CD Docker Hub
+name: CI/CD AWS
 
 on:
   push:
-    branches: [master]
+    branches: [AWS-Infrastructure]
 
 permissions:
   contents: write
@@ -11,6 +11,6 @@ jobs:
   pipeline:
     uses: ./.github/workflows/_pipeline.yml
     with:
-      runner: ubuntu-latest
-      registry: dockerhub
+      runner: self-hosted
+      registry: ecr
     secrets: inherit
