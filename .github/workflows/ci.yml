@@ -10,15 +10,20 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
     steps:
       - name: Checkout
         run: git clone --branch "$GITHUB_REF_NAME" "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY.git" .
 
       - name: Bump version
+        id: bump
         run: |
           export JAVA_HOME=$JAVA_HOME_21_X64
           mvn -B build-helper:parse-version versions:set -DnewVersion='${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.nextIncrementalVersion}' versions:commit
-          echo "VERSION=$(mvn -B help:evaluate -Dexpression=project.version -q -DforceStdout)" >> $GITHUB_ENV
+          VERSION=$(mvn -B help:evaluate -Dexpression=project.version -q -DforceStdout)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Build and push
         run: |
@@ -32,3 +37,19 @@ jobs:
           git config user.email github-actions@github.com
           git commit -am "Bump version to $VERSION"
           git push
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull image
+        run: |
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/simple-java-maven-app:${{ needs.build.outputs.version }}
+
+      - name: Run and verify
+        run: |
+          OUTPUT=$(docker run --rm ${{ secrets.DOCKERHUB_USERNAME }}/simple-java-maven-app:${{ needs.build.outputs.version }})
+          echo "Application output: $OUTPUT"
+          echo "$OUTPUT" | grep -q "Hello World!"
+          echo "Application is running correctly"
